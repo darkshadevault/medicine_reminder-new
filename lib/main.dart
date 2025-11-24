@@ -1,4 +1,4 @@
-// lib/main.dart → GANTI SEMUA DENGAN INI! VERSI PALING BERSIH & KEREN
+// lib/main.dart → GANTI SELURUHNYA DENGAN INI! 100% BERHASIL BUILD!
 
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -15,8 +15,7 @@ Future<void> initNotif() async {
   final String tzName = await FlutterTimezone.getLocalTimezone();
   tz.setLocalLocation(tz.getLocation(tzName));
 
-  const AndroidInitializationSettings android =
-      AndroidInitializationSettings('@mipmap/ic_launcher');
+  const AndroidInitializationSettings android = AndroidInitializationSettings('@mipmap/ic_launcher');
   await notif.initialize(const InitializationSettings(android: android));
 }
 
@@ -84,7 +83,6 @@ class _ReminderHomePageState extends State<ReminderHomePage> {
   }
 
   Future<void> _addReminder() async {
-    // 1. Pilih jam
     final tod = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.now(),
@@ -93,7 +91,6 @@ class _ReminderHomePageState extends State<ReminderHomePage> {
     if (tod == null) return;
     final time = DateTime(2025, 1, 1, tod.hour, tod.minute);
 
-    // 2. Nama obat
     String name = '';
     final ok = await showDialog<bool>(
       context: context,
@@ -104,10 +101,7 @@ class _ReminderHomePageState extends State<ReminderHomePage> {
         content: TextField(
           autofocus: true,
           style: const TextStyle(fontSize: 18, color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: 'Paracetamol',
-            border: UnderlineInputBorder(),
-          ),
+          decoration: const InputDecoration(hintText: 'Paracetamol', border: UnderlineInputBorder()),
           onChanged: (v) => name = v,
         ),
         actions: [
@@ -119,7 +113,6 @@ class _ReminderHomePageState extends State<ReminderHomePage> {
     if (ok != true || name.trim().isEmpty) return;
     name = name.trim();
 
-    // 3. Frekuensi — SCROLL WHEEL BESAR
     int freq = 1;
     await showModalBottomSheet(
       context: context,
@@ -127,16 +120,10 @@ class _ReminderHomePageState extends State<ReminderHomePage> {
       isScrollControlled: true,
       builder: (_) => Container(
         height: 380,
-        decoration: const BoxDecoration(
-          color: Color(0xFF1E1E1E),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
+        decoration: const BoxDecoration(color: Color(0xFF1E1E1E), borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
         child: Column(
           children: [
-            const Padding(
-              padding: EdgeInsets.only(top: 20),
-              child: Text('Berapa kali sehari?', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600)),
-            ),
+            const Padding(padding: EdgeInsets.only(top: 20), child: Text('Berapa kali sehari?', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600))),
             Expanded(
               child: ListWheelScrollView.useDelegate(
                 itemExtent: 70,
@@ -145,12 +132,7 @@ class _ReminderHomePageState extends State<ReminderHomePage> {
                 onSelectedItemChanged: (i) => freq = i + 1,
                 childDelegate: ListWheelChildBuilderDelegate(
                   childCount: 6,
-                  builder: (_, i) => Center(
-                    child: Text(
-                      '${i + 1}',
-                      style: TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
-                  ),
+                  builder: (_, i) => Center(child: Text('${i + 1}', style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.white))),
                 ),
               ),
             ),
@@ -167,7 +149,6 @@ class _ReminderHomePageState extends State<ReminderHomePage> {
       ),
     );
 
-    // 4. Jumlah dosis — kosong
     final doseCtrl = TextEditingController();
     int doses = 30;
     await showDialog(
@@ -189,7 +170,6 @@ class _ReminderHomePageState extends State<ReminderHomePage> {
     );
     if (doses < 1) doses = 1;
 
-    // 5. Alarm keras → SWITCH ON/OFF
     bool useAlarm = true;
     await showDialog(
       context: context,
@@ -208,7 +188,6 @@ class _ReminderHomePageState extends State<ReminderHomePage> {
       ),
     );
 
-    // Simpan & jadwalkan
     reminders.add({'name': name, 'time': time, 'freq': freq, 'doses': doses, 'alarm': useAlarm});
     await _save();
     await _schedule(name, time, freq, doses, useAlarm);
@@ -265,7 +244,7 @@ class _ReminderHomePageState extends State<ReminderHomePage> {
             : null,
       ),
       body: reminders.isEmpty
-          ? const SizedBox() // KOSONG TOTAL! Hanya background hitam + tombol +
+          ? const SizedBox()
           : ListView.builder(
               itemCount: reminders.length,
               itemBuilder: (_, i) {

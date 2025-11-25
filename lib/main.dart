@@ -271,7 +271,7 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
     {'times': 2, 'text': '2 kali sehari', 'interval': '12 jam'},
     {'times': 3, 'text': '3 kali sehari', 'interval': '8 jam'},
     {'times': 4, 'text': '4 kali sehari', 'interval': '6 jam'},
-    {'times': 5, 'text': '5 kali sehari', 'interval': '≈4.8 jam'},
+    {'times': 5, 'text': '5 kali sehari', 'interval': '4.8 jam'},
     {'times': 6, 'text': '6 kali sehari', 'interval': '4 jam'},
   ];
 
@@ -311,11 +311,11 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
           child: TextField(controller: _nameController, style: const TextStyle(color: Colors.black, fontSize: 18),
-            decoration: const InputDecoration(border: InputBorder.none, hintText: 'Paracetamol, Amoxicillin, dll'),
+            decoration: const InputDecoration(border: InputBorder.none, hintText: 'Paracetamol'),
           ),
         ),
         const SizedBox(height: 24),
-        const Text('Total berapa kali harus minum obat ini?', style: TextStyle(fontSize: 17)),
+        const Text('Jumlah obat', style: TextStyle(fontSize: 17)),
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -358,15 +358,15 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
         const SizedBox(height: 20),
         Center(
           child: Text(
-            'Total durasi: $days hari ${hours > 0 ? '$hours jam' : ''}\n($_totalDoses kali ÷ $_timesPerDay kali/hari)',
+            'Total durasi: $days hari ${hours > 0 ? '$hours jam' : ''}',
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 16, color: Colors.white70),
           ),
         ),
         const SizedBox(height: 40),
         const Text('Jenis pengingat', style: TextStyle(fontSize: 17)),
-        SwitchListTile(title: const Text('Notifikasi biasa'), value: _notifOnly, onChanged: (v) => setState(() => _notifOnly = v)),
-        SwitchListTile(title: const Text('Alarm dengan suara'), value: _alarm, onChanged: (v) => setState(() => _alarm = v)),
+        SwitchListTile(title: const Text('Notifikasi'), value: _notifOnly, onChanged: (v) => setState(() => _notifOnly = v)),
+        SwitchListTile(title: const Text('Alarm'), value: _alarm, onChanged: (v) => setState(() => _alarm = v)),
       ]),
     );
   }

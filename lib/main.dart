@@ -1,287 +1,344 @@
-// lib/main.dart → GANTI SELURUH FILE DENGAN INI! 100% BERHASIL BUILD
-
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
-import 'package:flutter_timezone/flutter_timezone.dart';
 
-final FlutterLocalNotificationsPlugin notif = FlutterLocalNotificationsPlugin();
-
-Future<void> initNotif() async {
-  tz.initializeTimeZones();
-  final String tzName = await FlutterTimezone.getLocalTimezone();
-  tz.setLocalLocation(tz.getLocation(tzName));
-
-  const AndroidInitializationSettings android = AndroidInitializationSettings('@mipmap/ic_launcher');
-  await notif.initialize(const InitializationSettings(android: android));
-}
-
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await initNotif();
+  tz.initializeTimeZones();
   runApp(const MedicineReminderApp());
 }
 
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
+
 class MedicineReminderApp extends StatelessWidget {
   const MedicineReminderApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Pengingat Minum Obat',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: Colors.black,
-        appBarTheme: const AppBarTheme(backgroundColor: Colors.black, elevation: 0),
+        appBarTheme: const AppBarTheme(backgroundColor: Colors.black),
       ),
-      home: const ReminderHomePage(),
+      home: const MedicineListScreen(),
     );
   }
 }
 
-class ReminderHomePage extends StatefulWidget {
-  const ReminderHomePage({super.key});
-  @override
-  State<ReminderHomePage> createState() => _ReminderHomePageState();
+class Medicine {
+  String name;
+  int timesPerDay;
+  int totalTablets;
+  bool notificationOnly;
+  bool alarmSound;
+  bool isActive;
+
+  Medicine({
+    required this.name,
+    required this.timesPerDay,
+    required this.totalTablets,
+    this.notificationOnly = true,
+    this.alarmSound = false,
+    this.isActive = true,
+  });
 }
 
-class _ReminderHomePageState extends State<ReminderHomePage> {
-  List<Map<String, dynamic>> reminders = [];
-  final Set<int> selected = {};
+class MedicineListScreen extends StatefulWidget {
+  const MedicineListScreen({super.key});
+
+  @override
+  State<MedicineListScreen> createState() => _MedicineListScreenState();
+}
+
+class _MedicineListScreenState extends State<MedicineListScreen> {
+  List<Medicine> medicines = [];
 
   @override
   void initState() {
     super.initState();
-    _load();
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const InitializationSettings initializationSettings =
+        InitializationSettings(android: initializationSettingsAndroid);
+    flutterLocalNotificationsPlugin.initialize(initializationSettings);
   }
 
-  Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final data = prefs.getStringList('reminders') ?? [];
-    setState(() {
-      reminders = data.map((e) {
-        final p = e.split('|');
-        return {
-          'name': p[0],
-          'freq': int.parse(p[1]),
-          'doses': int.parse(p[2]),
-          'time': DateTime.parse(p[3]),
-          'alarm': p[4] == 'true',
-        };
-      }).toList();
-    });
+  void _addMedicine(Medicine med) {
+    setState(() => medicines.add(med));
+    _scheduleNotifications(med);
   }
 
-  Future<void> _save() async {
-    final prefs = await SharedPreferences.getInstance();
-    final data = reminders.map((r) =>
-        '\( {r['name']}| \){r['freq']}|\( {r['doses']}| \){r['time'].toIso8601String()}|${r['alarm']}').toList();
-    await prefs.setStringList('reminders', data);
-  }
+  void _scheduleNotifications(Medicine med) async {
+    if (!med.isActive) return;
 
-  Future<void> _addReminder() async {
-    final tod = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.now(),
-      builder: (_, child) => Theme(data: ThemeData.dark(), child: child!),
-    );
-    if (tod == null) return;
-    final time = DateTime(2025, 1, 1, tod.hour, tod.minute);
+    for (int i = 0; i < med.timesPerDay; i++) {
+      final now = DateTime.now();
+      final scheduledDate = now.add(Duration(minutes: 1 + i * 2)); // demo timing
 
-    String name = '';
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: Colors.grey[900],
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Nama Obat'),
-        content: TextField(
-          autofocus: true,
-          style: const TextStyle(fontSize: 18, color: Colors.white),
-          decoration: const InputDecoration(hintText: 'Paracetamol', border: UnderlineInputBorder()),
-          onChanged: (v) => name = v,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Lanjut', style: TextStyle(color: Colors.blue))),
-        ],
-      ),
-    );
-    if (ok != true || name.trim().isEmpty) return;
-    name = name.trim();
+      AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+        'medicine_channel',
+        'Medicine Reminders',
+        channelDescription: 'Remind to take medicine',
+        importance: Importance.max,
+        priority: Priority.high,
+        playSound: med.alarmSound,
+        enableVibration: true,
+      );
 
-    int freq = 1;
-    await showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => Container(
-        height: 380,
-        decoration: const BoxDecoration(color: Color(0xFF1E1E1E), borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-        child: Column(
-          children: [
-            const Padding(padding: EdgeInsets.only(top: 20), child: Text('Berapa kali sehari?', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600))),
-            Expanded(
-              child: ListWheelScrollView.useDelegate(
-                itemExtent: 70,
-                physics: const FixedExtentScrollPhysics(),
-                diameterRatio: 1.8,
-                onSelectedItemChanged: (i) => freq = i + 1,
-                childDelegate: ListWheelChildBuilderDelegate(
-                  childCount: 6,
-                  builder: (_, i) => Center(child: Text('${i + 1}', style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.white))),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, minimumSize: const Size(double.infinity, 52)),
-                child: const Text('OK', style: TextStyle(fontSize: 18)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+      NotificationDetails details = NotificationDetails(android: androidDetails);
 
-    int doses = 30;
-    await showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: Colors.grey[900],
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Jumlah Dosis'),
-        content: TextField(
-          keyboardType: TextInputType.number,
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.white),
-          decoration: const InputDecoration(hintText: '30', border: InputBorder.none),
-          onChanged: (v) => doses = int.tryParse(v) ?? 1,
-        ),
-        actions: [Center(child: TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK', style: TextStyle(color: Colors.blue, fontSize: 18))))],
-      ),
-    );
-    if (doses < 1) doses = 1;
-
-    bool useAlarm = true;
-    await showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: Colors.grey[900],
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-        content: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text('Alarm keras + getar', style: TextStyle(fontSize: 18, color: Colors.white)),
-            Switch(value: useAlarm, activeColor: Colors.blue, onChanged: (v) => setState(() => useAlarm = v)),
-          ],
-        ),
-        actions: [Center(child: TextButton(onPressed: () => Navigator.pop(context), child: const Text('Selesai', style: TextStyle(color: Colors.blue, fontSize: 18))))],
-      ),
-    );
-
-    reminders.add({'name': name, 'time': time, 'freq': freq, 'doses': doses, 'alarm': useAlarm});
-    await _save();
-    await _schedule(name, time, freq, doses, useAlarm);
-    setState(() {});
-  }
-
-  Future<void> _schedule(String name, DateTime time, int freq, int doses, bool useAlarm) async {
-    await notif.cancelAll();
-    final interval = 24.0 / freq;
-    var first = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day, time.hour, time.minute);
-    if (first.isBefore(DateTime.now())) first = first.add(const Duration(days: 1));
-
-    for (int i = 0; i < doses; i++) {
-      final dt = first.add(Duration(minutes: (i * interval * 60).round()));
-      await notif.zonedSchedule(
-        dt.millisecondsSinceEpoch ~/ 1000,
-        'Waktunya minum $name',
-        'Jangan lupa minum obat!',
-        tz.TZDateTime.from(dt, tz.local),
-        NotificationDetails(
-          android: AndroidNotificationDetails(
-            'medicine',
-            'Pengingat Obat',
-            importance: Importance.max,
-            priority: Priority.high,
-            playSound: useAlarm,
-            enableVibration: useAlarm,
-          ),
-        ),
+      await flutterLocalNotificationsPlugin.zonedSchedule(
+        i,
+        '🩺 Time to take medicine!',
+        '\( {med.name} - Dose \){i + 1}/${med.timesPerDay}',
+        tz.TZDateTime.from(scheduledDate, tz.local),
+        details,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
       );
     }
-  }
-
-  void _deleteSelected() async {
-    final sorted = selected.toList()..sort((a, b) => b.compareTo(a));
-    for (final i in sorted) reminders.removeAt(i);
-    await notif.cancelAll();
-    await _save();
-    setState(() => selected.clear());
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Pengingat Minum Obat', style: TextStyle(fontSize: 21)),
-        actions: selected.isNotEmpty
-            ? [
-                Padding(padding: const EdgeInsets.only(right: 12), child: Center(child: Text('${selected.length} dipilih', style: TextStyle(color: Colors.white70)))),
-                IconButton(icon: const Icon(Icons.delete), onPressed: _deleteSelected),
-                IconButton(icon: const Icon(Icons.close), onPressed: () => setState(() => selected.clear())),
-              ]
-            : null,
+        title: const Text('Medicine Reminder', style: TextStyle(fontSize: 20)),
+        centerTitle: true,
+        backgroundColor: Colors.black,
       ),
-      body: reminders.isEmpty
-          ? const SizedBox.shrink()
+      body: medicines.isEmpty
+          ? const Center(
+              child: Text(
+                'No medicines added yet',
+                style: TextStyle(color: Colors.grey, fontSize: 18),
+              ),
+            )
           : ListView.builder(
-              itemCount: reminders.length,
-              itemBuilder: (_, i) {
-                final r = reminders[i];
-                final sel = selected.contains(i);
-                return Dismissible(
-                  key: ValueKey(i),
-                  direction: DismissDirection.endToStart,
-                  background: Container(color: Colors.red, alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 30), child: const Icon(Icons.delete, color: Colors.white, size: 34)),
-                  onDismissed: (_) async {
-                    reminders.removeAt(i);
-                    await notif.cancelAll();
-                    await _save();
-                    setState(() {});
-                  },
+              itemCount: medicines.length,
+              itemBuilder: (context, index) {
+                final med = medicines[index];
+                return Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1D1D1D),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: ListTile(
-                    selected: sel,
-                    selectedTileColor: Colors.blue.withOpacity(0.25),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
-                    title: Text(r['name'], style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w600)),
-                    subtitle: Text('\( {r['freq']} kali sehari • \){r['doses']} dosis', style: const TextStyle(fontSize: 16)),
-                    trailing: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(DateFormat('HH:mm').format(r['time']), style: const TextStyle(fontSize: 42, fontWeight: FontWeight.bold)),
-                        Text(r['alarm'] ? 'Alarm' : 'Notifikasi', style: TextStyle(fontSize: 15, color: r['alarm'] ? Colors.blue : Colors.grey)),
-                      ],
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    title: Text(
+                      '\( {med.timesPerDay == 1 ? "Once" : " \){med.timesPerDay} times"} daily',
+                      style: const TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w300,
+                        color: Colors.white,
+                      ),
                     ),
-                    onTap: selected.isNotEmpty ? () => setState(() => sel ? selected.remove(i) : selected.add(i)) : null,
-                    onLongPress: () => setState(() => selected.add(i)),
+                    subtitle: Text(
+                      '\( {med.name} • \){med.totalTablets} tablets left',
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                    trailing: Switch(
+                      value: med.isActive,
+                      activeColor: Colors.blue,
+                      onChanged: (val) {
+                        setState(() => med.isActive = val);
+                      },
+                    ),
                   ),
                 );
               },
             ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.blue,
-        elevation: 10,
-        child: const Icon(Icons.add, size: 36),
-        onPressed: _addReminder,
+        backgroundColor: const Color(0xFF0A84FF),
+        child: const Icon(Icons.add, size: 32),
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AddMedicineScreen(onSave: _addMedicine),
+            fullscreenDialog: true,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class AddMedicineScreen extends StatefulWidget {
+  final Function(Medicine) onSave;
+  const AddMedicineScreen({super.key, required this.onSave});
+
+  @override
+  State<AddMedicineScreen> createState() => _AddMedicineScreenState();
+}
+
+class _AddMedicineScreenState extends State<AddMedicineScreen> {
+  final _nameController = TextEditingController();
+  int _timesPerDay = 1;
+  int _totalTablets = 10;
+  bool _notificationOnly = true;
+  bool _alarmSound = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        leading: TextButton(
+          child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text('Add Medicine'),
+        actions: [
+          TextButton(
+            onPressed: _nameController.text.isEmpty
+                ? null
+                : () {
+                    final med = Medicine(
+                      name: _nameController.text,
+                      timesPerDay: _timesPerDay,
+                      totalTablets: _totalTablets,
+                      notificationOnly: _notificationOnly,
+                      alarmSound: _alarmSound,
+                    );
+                    widget.onSave(med);
+                    Navigator.pop(context);
+                  },
+            child: const Text('Save', style: TextStyle(color: Colors.blue)),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          // Medicine Name
+          TextField(
+            controller: _nameController,
+            style: const TextStyle(fontSize: 20, color: Colors.white),
+            decoration: const InputDecoration(
+              hintText: 'Medicine name (e.g., Paracetamol)',
+              hintStyle: TextStyle(color: Colors.grey),
+              border: InputBorder.none,
+            ),
+          ),
+          const Divider(color: Colors.grey),
+
+          const SizedBox(height: 30),
+
+          // Times per day slider
+          const Text('How many times a day?',
+              style: TextStyle(fontSize: 18, color: Colors.white70)),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(6, (i) {
+              final times = i + 1;
+              return GestureDetector(
+                onTap: () => setState(() => _timesPerDay = times),
+                child: Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: _timesPerDay == times
+                        ? Colors.blue
+                        : const Color(0xFF2D2D2D),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '$times×',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color:
+                          _timesPerDay == times ? Colors.white : Colors.grey,
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 10),
+          Center(
+            child: Text(
+              '$_timesPerDay kali sehari',
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w300),
+            ),
+          ),
+
+          const SizedBox(height: 40),
+
+          // Total tablets
+          const Text('Total tablets / strips',
+              style: TextStyle(fontSize: 18, color: Colors.white70)),
+          const SizedBox(height: 10),
+          TextField(
+            keyboardType: TextInputType.number,
+            style: const TextStyle(fontSize: 24, color: Colors.white),
+            decoration: InputDecoration(
+              hintText: '$_totalTablets',
+              hintStyle: const TextStyle(color: Colors.grey),
+              border: InputBorder.none,
+            ),
+            onChanged: (v) {
+              _totalTablets = int.tryParse(v) ?? 10;
+            },
+          ),
+          const Divider(color: Colors.grey),
+
+          const SizedBox(height: 30),
+
+          // Notification type
+          ListTile(
+            title: const Text('Notification only',
+                style: TextStyle(color: Colors.white)),
+            trailing: Switch(
+              value: _notificationOnly,
+              activeColor: Colors.blue,
+              onChanged: (val) {
+                setState(() {
+                  _notificationOnly = val;
+                  if (val) _alarmSound = false;
+                });
+              },
+            ),
+          ),
+          ListTile(
+            title: const Text('Alarm sound',
+                style: TextStyle(color: Colors.white)),
+            trailing: Switch(
+              value: _alarmSound,
+              activeColor: Colors.blue,
+              onChanged: (val) {
+                setState(() {
+                  _alarmSound = val;
+                  if (val) _notificationOnly = false;
+                });
+              },
+            ),
+          ),
+          ListTile(
+            title: const Text('Both notification + alarm',
+                style: TextStyle(color: Colors.white70)),
+            trailing: Switch(
+              value: !_notificationOnly && !_alarmSound,
+              activeColor: Colors.blue,
+              onChanged: (val) {
+                if (val) {
+                  setState(() {
+                    _notificationOnly = false;
+                    _alarmSound = false;
+                  });
+                }
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

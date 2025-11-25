@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -6,7 +7,8 @@ import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter_timezone/flutter_timezone.dart';
 
-final FlutterLocalNotificationsPlugin notifications = FlutterLocalNotificationsPlugin();
+final FlutterLocalNotificationsPlugin notifications =
+    FlutterLocalNotificationsPlugin();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,30 +16,30 @@ void main() async {
   final String timeZoneName = await FlutterTimezone.getLocalTimezone();
   tz.setLocalLocation(tz.getLocation(timeZoneName));
 
-  const AndroidInitializationSettings android = AndroidInitializationSettings('@mipmap/ic_launcher');
-  const InitializationSettings initSettings = InitializationSettings(android: android);
-  await notifications.initialize(initSettings);
+  const AndroidInitializationSettings android =
+      AndroidInitializationSettings('@mipmap/ic_launcher');
+  await notifications.initialize(const InitializationSettings(android: android));
 
   runApp(const MedicineReminderApp());
 }
 
 class Medicine {
+  String id;
   String name;
   int timesPerDay;
   int totalTablets;
   bool notificationOnly;
   bool alarmSound;
   bool isActive;
-  String id;
 
   Medicine({
+    required this.id,
     required this.name,
     required this.timesPerDay,
     required this.totalTablets,
     this.notificationOnly = true,
     this.alarmSound = false,
     this.isActive = true,
-    required this.id,
   });
 
   Map<String, dynamic> toJson() => {
@@ -55,9 +57,9 @@ class Medicine {
         name: json['name'],
         timesPerDay: json['timesPerDay'],
         totalTablets: json['totalTablets'],
-        notificationOnly: json['notificationOnly'],
-        alarmSound: json['alarmSound'],
-        isActive: json['isActive'],
+        notificationOnly: json['notificationOnly'] ?? true,
+        alarmSound: json['alarmSound'] ?? false,
+        isActive: json['isActive'] ?? true,
       );
 }
 
@@ -67,9 +69,7 @@ class MedicineReminderApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: Colors.black,
-      ),
+      theme: ThemeData.dark().copyWith(scaffoldBackgroundColor: Colors.black),
       home: const MedicineListScreen(),
     );
   }
@@ -87,99 +87,87 @@ class _MedicineListScreenState extends State<MedicineListScreen> {
   @override
   void initState() {
     super.initState();
-    _loadMedicines();
+    _load();
   }
 
-  Future<void> _loadMedicines() async {
+  Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    final String? data = prefs.getString('medicines');
+    final data = prefs.getString('medicines');
     if (data != null) {
-      final List<dynamic> jsonList = jsonDecode(data);
       setState(() {
-        medicines = jsonList.map((e) => Medicine.fromJson(e)).toList();
+        medicines = (jsonDecode(data) as List)
+            .map((e) => Medicine.fromJson(e))
+            .toList();
       });
     }
   }
 
-  Future<void> _saveMedicines() async {
+  Future<void> _save() async {
     final prefs = await SharedPreferences.getInstance();
-    final String data = jsonEncode(medicines.map((e) => e.toJson()).toList());
-    prefs.setString('medicines', data);
+    prefs.setString('medicines', jsonEncode(medicines.map((e) => e.toJson()).toList()));
   }
 
-  void _addMedicine(Medicine med) {
-    setState(() => medicines.add(med));
-    _saveMedicines();
-    _scheduleAllDoses(med);
+  void _add(Medicine m) {
+    setState(() => medicines.add(m));
+    _save();
+    _schedule(m);
   }
 
-  void _toggleActive(Medicine med) {
-    setState(() => med.isActive = !med.isActive);
-    _saveMedicines();
-    if (med.isActive) {
-      _scheduleAllDoses(med);
-    } else {
-      _cancelAllDoses(med);
-    }
+  void _toggle(Medicine m) {
+    setState(() => m.isActive = !m.isActive);
+    _save();
+    m.isActive ? _schedule(m) : _cancel(m);
   }
 
-  Future<void> _scheduleAllDoses(Medicine med) async {
-    await _cancelAllDoses(med); // bersihkan dulu
-
-    // Contoh: dosis merata tiap hari mulai jam 8 pagi
+  Future<void> _schedule(Medicine m) async {
+    await _cancel(m);
     final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
+    final today = DateTime(now.year, now.month, now.day, 8); // mulai jam 8 pagi
+    final intervalMinutes = (1440 / m.timesPerDay).floor();
 
-    for (int i = 0; i < med.timesPerDay; i++) {
-      final minutesPerDose = 1440 ~/ med.timesPerDay; // 1440 menit dalam sehari
-      final doseTime = today.add(Duration(minutes: 480 + i * minutesPerDose)); // mulai jam 8 pagi
+    for (int i = 0; i < m.timesPerDay; i++) {
+      var time = today.add(Duration(minutes: i * intervalMinutes));
+      if (time.isBefore(now)) time = time.add(const Duration(days: 1));
 
-      final scheduledDate = doseTime.isBefore(now) ? doseTime.add(const Duration(days: 1)) : doseTime;
-
-      final androidDetails = AndroidNotificationDetails(
-        'medicine_channel',
-        'Pengingat Obat',
-        channelDescription: 'Notifikasi minum obat',
+      final android = AndroidNotificationDetails(
+        'med_channel',
+        'Obat',
         importance: Importance.max,
         priority: Priority.high,
-        playSound: med.alarmSound || !med.notificationOnly,
-        enableVibration: true,
+        playSound: m.alarmSound || !m.notificationOnly,
       );
 
       await notifications.zonedSchedule(
-        int.parse('${med.id}$i'),
+        int.parse(m.id + i.toString()),
         'Waktunya Minum Obat',
-        '\( {med.name} – Dosis \){i + 1}/${med.timesPerDay}',
-        tz.TZDateTime.from(scheduledDate, tz.local),
-        NotificationDetails(android: androidDetails),
+        '\( {m.name} • Dosis \){i + 1}',
+        tz.TZDateTime.from(time, tz.local),
+        NotificationDetails(android: android),
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.time,
       );
     }
   }
 
-  Future<void> _cancelAllDoses(Medicine med) async {
-    for (int i = 0; i < med.timesPerDay; i++) {
-      await notifications.cancel(int.parse('${med.id}$i'));
+  Future<void> _cancel(Medicine m) async {
+    for (int i = 0; i < 10; i++) {
+      await notifications.cancel(int.parse(m.id + i.toString()));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Pengingat Obat'),
-        centerTitle: true,
-        backgroundColor: Colors.black,
-      ),
+      appBar: AppBar(title: const Text('Pengingat Obat'), centerTitle: true),
       body: medicines.isEmpty
           ? const Center(child: Text('Belum ada obat', style: TextStyle(fontSize: 18, color: Colors.grey)))
           : ListView.builder(
-              itemCount: medicines.length,
               padding: const EdgeInsets.all(16),
-              itemBuilder: (context, index) {
-                final med = medicines[index];
+              itemCount: medicines.length,
+              itemBuilder: (_, i) {
+                final m = medicines[i];
                 return Container(
                   margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(
@@ -187,20 +175,13 @@ class _MedicineListScreenState extends State<MedicineListScreen> {
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                     title: Text(
-                      med.timesPerDay == 1 ? 'Sekali sehari' : '${med.timesPerDay} kali sehari',
-                      style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w300, height: 1),
+                      m.timesPerDay == 1 ? '1 kali sehari' : '$m kali sehari',
+                      style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w300),
                     ),
-                    subtitle: Text(
-                      '\( {med.name} • \){med.totalTablets} tablet tersisa',
-                      style: const TextStyle(color: Colors.grey),
-                    ),
-                    trailing: Switch(
-                      value: med.isActive,
-                      activeColor: Colors.blue,
-                      onChanged: (_) => _toggleActive(med),
-                    ),
+                    subtitle: Text('\( {m.name} • \){m.totalTablets} tablet'),
+                    trailing: Switch(value: m.isActive, activeColor: Colors.blue, onChanged: (_) => _toggle(m)),
                   ),
                 );
               },
@@ -208,17 +189,13 @@ class _MedicineListScreenState extends State<MedicineListScreen> {
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF0A84FF),
         child: const Icon(Icons.add, size: 36),
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => AddMedicineScreen(onSave: _addMedicine),
-            fullscreenDialog: true,
-          ),
-        ),
+        onPressed: () => Navigator.push(context, CupertinoPageRoute(builder: (_) => AddMedicineScreen(onSave: _add))),
       ),
     );
   }
 }
 
+// =================== HALAMAN TAMBAH OBAT (UI BARU CANTIK) ===================
 class AddMedicineScreen extends StatefulWidget {
   final Function(Medicine) onSave;
   const AddMedicineScreen({super.key, required this.onSave});
@@ -231,8 +208,17 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
   final _nameController = TextEditingController();
   int _timesPerDay = 1;
   int _totalTablets = 30;
-  bool _notificationOnly = true;
-  bool _alarmSound = false;
+  bool _notifOnly = true;
+  bool _alarm = false;
+
+  final List<Map<String, dynamic>> frequencies = [
+    {'times': 1, 'interval': '24 jam'},
+    {'times': 2, 'interval': '12 jam'},
+    {'times': 3, 'interval': '8 jam'},
+    {'times': 4, 'interval': '6 jam'},
+    {'times': 5, 'interval': '≈4.8 jam'},
+    {'times': 6, 'interval': '4 jam'},
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -240,9 +226,7 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
-        leading: TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal', style: TextStyle(color: Colors.grey))),
+        leading: TextButton(child: const Text('Batal', style: TextStyle(color: Colors.grey)), onPressed: () => Navigator.pop(context)),
         actions: [
           TextButton(
             onPressed: _nameController.text.trim().isEmpty
@@ -253,8 +237,8 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
                       name: _nameController.text.trim(),
                       timesPerDay: _timesPerDay,
                       totalTablets: _totalTablets,
-                      notificationOnly: _notificationOnly,
-                      alarmSound: _alarmSound,
+                      notificationOnly: _notifOnly,
+                      alarmSound: _alarm,
                     );
                     widget.onSave(med);
                     Navigator.pop(context);
@@ -264,92 +248,75 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
         ],
       ),
       body: ListView(padding: const EdgeInsets.all(20), children: [
-        // Nama Obat
-        TextField(
-          controller: _nameController,
-          style: const TextStyle(fontSize: 20),
-          decoration: const InputDecoration(
-            hintText: 'Nama obat (contoh: Paracetamol)',
-            hintStyle: TextStyle(color: Colors.grey),
-            border: InputBorder.none,
+        // Nama Obat - Kotak Putih
+        const Text('Nama obat', style: TextStyle(fontSize: 17)),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+          child: TextField(
+            controller: _nameController,
+            style: const TextStyle(color: Colors.black, fontSize: 18),
+            decoration: const InputDecoration(border: InputBorder.none, hintText: 'Contoh: Paracetamol', hintStyle: TextStyle(color: Colors.grey)),
           ),
         ),
-        const Divider(color: Colors.grey),
+
+        const SizedBox(height: 32),
+
+        // Jumlah Tablet - Kotak Putih
+        const Text('Jumlah tablet / strip', style: TextStyle(fontSize: 17)),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+          child: TextField(
+            keyboardType: TextInputType.number,
+            style: const TextStyle(color: Colors.black, fontSize: 18),
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              hintText: '$_totalTablets',
+              hintStyle: const TextStyle(color: Colors.grey),
+            ),
+            onChanged: (v) => setState(() => _totalTablets = int.tryParse(v) ?? 30),
+          ),
+        ),
 
         const SizedBox(height: 40),
-        const Text('Berapa kali sehari?', style: TextStyle(fontSize: 18)),
-        const SizedBox(height: 20),
 
-        // Slider 1–6 kali
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: List.generate(6, (i) {
-            int kali = i + 1;
-            return GestureDetector(
-              onTap: () => setState(() => _timesPerDay = kali),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: _timesPerDay == kali ? Colors.blue : const Color(0xFF2C2C2E),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  '$kali×',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: _timesPerDay == kali ? Colors.white : Colors.grey,
-                  ),
-                ),
-              ),
-            );
-          }),
-        ),
+        // Frekuensi - Wheel Picker
+        const Text('Berapa kali sehari?', style: TextStyle(fontSize: 17)),
         const SizedBox(height: 12),
+        SizedBox(
+          height: 180,
+          child: CupertinoPicker(
+            itemExtent: 48,
+            magnification: 1.2,
+            useMagnifier: true,
+            onSelectedItemChanged: (i) => setState(() => _timesPerDay = frequencies[i]['times']),
+            children: frequencies.map((f) {
+              return Center(
+                child: Text(
+                  '${f['times']} kali sehari',
+                  style: const TextStyle(fontSize: 22),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
         Center(
           child: Text(
-            '$_timesPerDay kali sehari',
-            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w300),
+            'Setiap ${frequencies.firstWhere((e) => e['times'] == _timesPerDay)['interval']}',
+            style: const TextStyle(fontSize: 18, color: Colors.grey),
           ),
         ),
 
         const SizedBox(height: 50),
 
-        // Jumlah Tablet
-        const Text('Jumlah tablet / strip', style: TextStyle(fontSize: 18)),
-        const SizedBox(height: 10),
-        TextField(
-          keyboardType: TextInputType.number,
-          style: const TextStyle(fontSize: 24),
-          decoration: InputDecoration(
-            hintText: '$_totalTablets',
-            hintStyle: const TextStyle(color: Colors.grey),
-            border: InputBorder.none,
-          ),
-          onChanged: (v) => _totalTablets = int.tryParse(v) ?? 30,
-        ),
-        const Divider(color: Colors.grey),
-
-        const SizedBox(height: 40),
-
-        // Jenis Notifikasi
-        const Text('Jenis pengingat', style: TextStyle(fontSize: 18)),
+        // Jenis Pengingat
+        const Text('Jenis pengingat', style: TextStyle(fontSize: 17)),
         const SizedBox(height: 12),
-        SwitchListTile(
-          title: const Text('Notifikasi biasa saja'),
-          value: _notificationOnly,
-          activeColor: Colors.blue,
-          onChanged: (v) => setState(() => _notificationOnly = v),
-        ),
-        SwitchListTile(
-          title: const Text('Alarm dengan suara'),
-          value: _alarmSound,
-          activeColor: Colors.blue,
-          onChanged: (v) => setState(() => _alarmSound = v),
-        ),
+        SwitchListTile(title: const Text('Notifikasi biasa'), value: _notifOnly, activeColor: Colors.blue, onChanged: (v) => setState(() => _notifOnly = v)),
+        SwitchListTile(title: const Text('Alarm dengan suara'), value: _alarm, activeColor: Colors.blue, onChanged: (v) => setState(() => _alarm = v)),
       ]),
     );
   }

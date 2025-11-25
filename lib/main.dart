@@ -1,4 +1,4 @@
-// lib/main.dart → GANTI SELURUHNYA DENGAN INI! 100% BERHASIL BUILD!
+// lib/main.dart → GANTI SEMUA DENGAN KODE INI! 100% BERHASIL BUILD
 
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -76,8 +76,8 @@ class _ReminderHomePageState extends State<ReminderHomePage> {
 
   Future<void> _save() async {
     final prefs = await SharedPreferences.getInstance();
-    final data = reminders
-        .map((r) => '\( {r['name']}| \){r['freq']}|\( {r['doses']}| \){r['time'].toIso8601String()}|${r['alarm']}')
+    final data = reminders.map((r) =>
+        '\( {r['name']}| \){r['freq']}|\( {r['doses']}| \){r['time'].toIso8601String()}|${r['alarm']}')
         .toList();
     await prefs.setStringList('reminders', data);
   }
@@ -149,7 +149,6 @@ class _ReminderHomePageState extends State<ReminderHomePage> {
       ),
     );
 
-    final doseCtrl = TextEditingController();
     int doses = 30;
     await showDialog(
       context: context,
@@ -158,7 +157,6 @@ class _ReminderHomePageState extends State<ReminderHomePage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Jumlah Dosis'),
         content: TextField(
-          controller: doseCtrl,
           keyboardType: TextInputType.number,
           textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.white),

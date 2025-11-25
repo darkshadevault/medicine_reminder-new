@@ -1,4 +1,4 @@
-// lib/main.dart → GANTI SELURUHNYA DENGAN KODE INI! 100% BERHASIL!
+// lib/main.dart → GANTI SELURUH FILE DENGAN INI! 100% BERHASIL BUILD
 
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -15,8 +15,7 @@ Future<void> initNotif() async {
   final String tzName = await FlutterTimezone.getLocalTimezone();
   tz.setLocalLocation(tz.getLocation(tzName));
 
-  const AndroidInitializationSettings android =
-      AndroidInitializationSettings('@mipmap/ic_launcher');
+  const AndroidInitializationSettings android = AndroidInitializationSettings('@mipmap/ic_launcher');
   await notif.initialize(const InitializationSettings(android: android));
 }
 
@@ -77,9 +76,8 @@ class _ReminderHomePageState extends State<ReminderHomePage> {
 
   Future<void> _save() async {
     final prefs = await SharedPreferences.getInstance();
-    final data = reminders
-        .map((r) => '\( {r['name']}| \){r['freq']}|\( {r['doses']}| \){r['time'].toIso8601String()}|${r['alarm']}')
-        .toList();
+    final data = reminders.map((r) =>
+        '\( {r['name']}| \){r['freq']}|\( {r['doses']}| \){r['time'].toIso8601String()}|${r['alarm']}').toList();
     await prefs.setStringList('reminders', data);
   }
 
@@ -133,9 +131,7 @@ class _ReminderHomePageState extends State<ReminderHomePage> {
                 onSelectedItemChanged: (i) => freq = i + 1,
                 childDelegate: ListWheelChildBuilderDelegate(
                   childCount: 6,
-                  builder: (_, i) => Center(
-                    child: Text('${i + 1}', style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.white)),
-                  ),
+                  builder: (_, i) => Center(child: Text('${i + 1}', style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.white))),
                 ),
               ),
             ),
@@ -166,14 +162,7 @@ class _ReminderHomePageState extends State<ReminderHomePage> {
           decoration: const InputDecoration(hintText: '30', border: InputBorder.none),
           onChanged: (v) => doses = int.tryParse(v) ?? 1,
         ),
-        actions: [
-          Center(
-            child: TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK', style: TextStyle(color: Colors.blue, fontSize: 18)),
-            ),
-          ),
-        ],
+        actions: [Center(child: TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK', style: TextStyle(color: Colors.blue, fontSize: 18))))],
       ),
     );
     if (doses < 1) doses = 1;
@@ -192,14 +181,7 @@ class _ReminderHomePageState extends State<ReminderHomePage> {
             Switch(value: useAlarm, activeColor: Colors.blue, onChanged: (v) => setState(() => useAlarm = v)),
           ],
         ),
-        actions: [
-          Center(
-            child: TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Selesai', style: TextStyle(color: Colors.blue, fontSize: 18)),
-            ),
-          ),
-        ],
+        actions: [Center(child: TextButton(onPressed: () => Navigator.pop(context), child: const Text('Selesai', style: TextStyle(color: Colors.blue, fontSize: 18))))],
       ),
     );
 

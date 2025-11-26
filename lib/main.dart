@@ -221,7 +221,7 @@ class _MedicineListScreenState extends State<MedicineListScreen> {
         await notifications.zonedSchedule(
           notifId,
           'Waktunya Minum Obat!',
-          '\( {m.name} • Dosis \){doseIndex + 1}',
+          '${m.name} • Dosis ${doseIndex + 1}',
           tzTime,
           const NotificationDetails(
             android: AndroidNotificationDetails(
@@ -350,9 +350,9 @@ class _MedicineListScreenState extends State<MedicineListScreen> {
                           ],
                         ),
                         const SizedBox(height: 8),
-                        Text('\( {m.timesPerDay}× sehari • Mulai \){m.firstDoseTime.format(context)}', style: const TextStyle(fontSize: 18)),
+                        Text('${m.timesPerDay}× sehari • Mulai ${m.firstDoseTime.format(context)}', style: const TextStyle(fontSize: 18)),
                         const SizedBox(height: 12),
-                        Text('Sisa \( {m.remainingDoses} dosis • \){m.remainingText}', style: const TextStyle(color: Colors.green, fontSize: 16)),
+                        Text('Sisa ${m.remainingDoses} dosis • ${m.remainingText}', style: const TextStyle(color: Colors.green, fontSize: 16)),
                         const Divider(color: Colors.grey, height: 30),
                         const Text('Jadwal 3 hari ke depan:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                         const SizedBox(height: 12),
@@ -485,66 +485,4 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-            child: TextField(
-              keyboardType: TextInputType.number,
-              style: const TextStyle(color: Colors.black, fontSize: 18),
-              decoration: InputDecoration(border: InputBorder.none, hintText: '30 dosis'),
-              onChanged: (v) => setState(() => _totalDoses = int.tryParse(v) ?? 30),
-            ),
-          ),
-          const SizedBox(height: 32),
-          const Text('Jam pertama hari ini', style: TextStyle(fontSize: 17)),
-          const SizedBox(height: 12),
-          GestureDetector(
-            onTap: () async {
-              final t = await showTimePicker(
-                context: context,
-                initialTime: _firstDoseTime,
-                builder: (_, child) => Theme(data: ThemeData.dark(), child: child!),
-              );
-              if (t != null) setState(() => _firstDoseTime = t);
-            },
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(color: const Color(0xFF1D1D1D), borderRadius: BorderRadius.circular(16)),
-              child: Center(
-                child: Text(
-                  _firstDoseTime.format(context),
-                  style: const TextStyle(fontSize: 48, fontWeight: FontWeight.w300),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 40),
-          const Text('Berapa kali sehari?', style: TextStyle(fontSize: 17)),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 160,
-            child: CupertinoPicker(
-              itemExtent: 44,
-              magnification: 1.2,
-              useMagnifier: true,
-              onSelectedItemChanged: (i) => setState(() => _timesPerDay = frequencies[i]['times'] as int),
-              children: frequencies
-                  .map((f) => Center(child: Text(f['text'] as String, style: const TextStyle(fontSize: 22))))
-                  .toList(),
-            ),
-          ),
-          Center(child: Text('Setiap ${selected['interval']}', style: const TextStyle(fontSize: 18, color: Colors.grey))),
-          const SizedBox(height: 20),
-          Center(
-            child: Text(
-              'Durasi ≈ \( days hari \){hours > 0 ? ' $hours jam' : ''}',
-              style: const TextStyle(fontSize: 16, color: Colors.white70),
-            ),
-          ),
-          const SizedBox(height: 40),
-          const Text('Jenis pengingat', style: TextStyle(fontSize: 17)),
-          SwitchListTile(title: const Text('Hanya notifikasi (tanpa suara)'), value: _notifOnly, onChanged: (v) => setState(() => _notifOnly = v)),
-          SwitchListTile(title: const Text('Alarm keras'), value: _alarm, onChanged: (v) => setState(() => _alarm = v)),
-        ],
-      ),
-    );
-  }
-}
+            decoration: BoxDecoration

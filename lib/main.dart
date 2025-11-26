@@ -34,7 +34,7 @@ void main() async {
     },
   );
 
-  // Format tanggal Indonesia — INI YANG BENAR!
+  // Format tanggal Indonesia
   await initializeDateFormatting('id_ID', null);
 
   runApp(const MedicineReminderApp());
@@ -150,7 +150,16 @@ class _MedicineListScreenState extends State<MedicineListScreen> {
   @override
   void initState() {
     super.initState();
+    _requestPermissions();
     _loadAndReschedule();
+  }
+
+  Future<void> _requestPermissions() async {
+    final androidPlugin = notifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    if (androidPlugin != null) {
+      await androidPlugin.requestNotificationsPermission();
+      await androidPlugin.requestExactAlarmsPermission();
+    }
   }
 
   Future<void> _loadAndReschedule() async {
@@ -181,6 +190,7 @@ class _MedicineListScreenState extends State<MedicineListScreen> {
     if (index != -1) {
       await _cancelAll(medicines[index]);
       medicines[index] = updated;
+      medicines[index].remainingDoses = updated.remainingDoses.clamp(0, updated.totalDoses);
       _save();
       if (updated.isActive) await _scheduleAll(updated);
       setState(() {});
@@ -200,54 +210,70 @@ class _MedicineListScreenState extends State<MedicineListScreen> {
     if (!m.isActive || m.remainingDoses <= 0) return;
 
     final intervalMinutes = (1440 / m.timesPerDay).floor();
-    var now = DateTime.now();
-    var todayFirst = DateTime(now.year, now.month, now.day, m.firstDoseTime.hour, m.firstDoseTime.minute);
-    if (todayFirst.isBefore(now)) todayFirst = todayFirst.add(const Duration(days: 1));
+    final now = DateTime.now();
+    var doseIndex = 0;
 
     final prefs = await SharedPreferences.getInstance();
     final takenSet = prefs.getStringList('taken_${m.id}')?.map(int.parse).toSet() ?? {};
 
-    int doseIndex = 0;
+    // Hitung mulai dari dosis pertama global
+    var currentDoseTime = DateTime(now.year, now.month, now.day, m.firstDoseTime.hour, m.firstDoseTime.minute);
+    if (currentDoseTime.isBefore(now)) {
+      // Hitung berapa dosis yang sudah lewat hari ini
+      final minutesPassed = now.difference(currentDoseTime).inMinutes;
+      final dosesPassedToday = (minutesPassed / intervalMinutes).floor();
+      doseIndex += dosesPassedToday;
+      // Mulai dari dosis berikutnya hari ini jika belum lewat semua
+      currentDoseTime = currentDoseTime.add(Duration(minutes: dosesPassedToday * intervalMinutes));
+      if (currentDoseTime.isBefore(now)) {
+        currentDoseTime = currentDoseTime.add(Duration(minutes: intervalMinutes));
+      }
+    }
+
     while (doseIndex < m.totalDoses) {
-      final dayOffset = (doseIndex / m.timesPerDay).floor();
-      final dayBase = todayFirst.add(Duration(days: dayOffset));
-
-      for (int i = 0; i < m.timesPerDay && doseIndex < m.totalDoses; i++) {
-        if (takenSet.contains(doseIndex)) {
-          doseIndex++;
-          continue;
-        }
-
-        final scheduledTime = dayBase.add(Duration(minutes: i * intervalMinutes));
-        final tzTime = tz.TZDateTime.from(scheduledTime, tz.local);
-        final notifId = int.parse(m.id) + doseIndex;
-
-        await notifications.zonedSchedule(
-          notifId,
-          'Waktunya Minum Obat!',
-          '\( {m.name} • Dosis \){doseIndex + 1}',
-          tzTime,
-          const NotificationDetails(
-            android: AndroidNotificationDetails(
-              'med',
-              'Pengingat Obat',
-              importance: Importance.max,
-              priority: Priority.high,
-              playSound: true,
-            ),
-          ),
-          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-          uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-          payload: '${m.id}|$doseIndex',
-        );
+      if (takenSet.contains(doseIndex)) {
         doseIndex++;
+        continue;
+      }
+
+      final tzTime = tz.TZDateTime.from(currentDoseTime, tz.local);
+      final notifId = (m.id.hashCode & 0xFFFFF) * 1000 + doseIndex;
+
+      await notifications.zonedSchedule(
+        notifId,
+        'Waktunya Minum Obat!',
+        '\( {m.name} • Dosis \){doseIndex + 1}',
+        tzTime,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            'med',
+            'Pengingat Obat',
+            importance: Importance.max,
+            priority: Priority.high,
+            playSound: true,
+            sound: m.alarmSound ? const RawResourceAndroidNotificationSound('alarm') : null,
+            ongoing: !m.notificationOnly,
+          ),
+        ),
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+        payload: '${m.id}|$doseIndex',
+      );
+
+      currentDoseTime = currentDoseTime.add(Duration(minutes: intervalMinutes));
+      doseIndex++;
+
+      // Jika melewati tengah malam, reset ke jam pertama hari berikutnya
+      if (currentDoseTime.hour * 60 + currentDoseTime.minute < m.firstDoseTime.hour * 60 + m.firstDoseTime.minute) {
+        currentDoseTime = DateTime(currentDoseTime.year, currentDoseTime.month, currentDoseTime.day + 1, m.firstDoseTime.hour, m.firstDoseTime.minute);
       }
     }
   }
 
   Future<void> _cancelAll(Medicine m) async {
     for (int i = 0; i < m.totalDoses; i++) {
-      await notifications.cancel(int.parse(m.id) + i);
+      final notifId = (m.id.hashCode & 0xFFFFF) * 1000 + i;
+      await notifications.cancel(notifId);
     }
   }
 
@@ -378,6 +404,7 @@ class AddMedicineScreen extends StatefulWidget {
 
 class _AddMedicineScreenState extends State<AddMedicineScreen> {
   late TextEditingController _nameController;
+  late TextEditingController _totalDosesController;
   late int _timesPerDay;
   late int _totalDoses;
   late TimeOfDay _firstDoseTime;
@@ -401,6 +428,7 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
       _nameController = TextEditingController(text: m.name);
       _timesPerDay = m.timesPerDay;
       _totalDoses = m.totalDoses;
+      _totalDosesController = TextEditingController(text: m.totalDoses.toString());
       _firstDoseTime = m.firstDoseTime;
       _notifOnly = m.notificationOnly;
       _alarm = m.alarmSound;
@@ -408,6 +436,7 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
       _nameController = TextEditingController();
       _timesPerDay = 3;
       _totalDoses = 30;
+      _totalDosesController = TextEditingController(text: '30');
       _firstDoseTime = const TimeOfDay(hour: 8, minute: 0);
       _notifOnly = true;
       _alarm = false;
@@ -439,6 +468,7 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
                 alarmSound: _alarm,
                 isActive: widget.medicineToEdit?.isActive ?? true,
               );
+              med.remainingDoses = widget.medicineToEdit?.remainingDoses ?? _totalDoses;
               widget.onSave(med);
               Navigator.pop(context);
             },
@@ -461,10 +491,17 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
           child: TextField(
+            controller: _totalDosesController,
             keyboardType: TextInputType.number,
             style: const TextStyle(color: Colors.black, fontSize: 18),
             decoration: const InputDecoration(border: InputBorder.none, hintText: '30 dosis'),
-            onChanged: (v) => setState(() => _totalDoses = int.tryParse(v) ?? 30),
+            onChanged: (v) {
+              final val = int.tryParse(v) ?? 1;
+              setState(() {
+                _totalDoses = val.clamp(1, 999999);
+                _totalDosesController.text = _totalDoses.toString();
+              });
+            },
           ),
         ),
         const SizedBox(height: 32),

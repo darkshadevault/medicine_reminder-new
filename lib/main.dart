@@ -90,10 +90,16 @@ class Medicine {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id, 'name': name, 'timesPerDay': timesPerDay, 'totalDoses': totalDoses,
-        'remainingDoses': remainingDoses, 'firstDoseHour': firstDoseTime.hour,
-        'firstDoseMinute': firstDoseTime.minute, 'notificationOnly': notificationOnly,
-        'alarmSound': alarmSound, 'isActive': isActive,
+        'id': id,
+        'name': name,
+        'timesPerDay': timesPerDay,
+        'totalDoses': totalDoses,
+        'remainingDoses': remainingDoses,
+        'firstDoseHour': firstDoseTime.hour,
+        'firstDoseMinute': firstDoseTime.minute,
+        'notificationOnly': notificationOnly,
+        'alarmSound': alarmSound,
+        'isActive': isActive,
       };
 
   factory Medicine.fromJson(Map<String, dynamic> json) {
@@ -102,7 +108,10 @@ class Medicine {
       name: json['name'],
       timesPerDay: json['timesPerDay'],
       totalDoses: json['totalDoses'],
-      firstDoseTime: TimeOfDay(hour: json['firstDoseHour'] ?? 8, minute: json['firstDoseMinute'] ?? 0),
+      firstDoseTime: TimeOfDay(
+        hour: json['firstDoseHour'] ?? 8,
+        minute: json['firstDoseMinute'] ?? 0,
+      ),
       notificationOnly: json['notificationOnly'] ?? true,
       alarmSound: json['alarmSound'] ?? false,
       isActive: json['isActive'] ?? true,
@@ -114,7 +123,8 @@ class Medicine {
 
 class MedicineReminderApp extends StatelessWidget {
   const MedicineReminderApp({super.key});
-  @override Widget build(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(scaffoldBackgroundColor: Colors.black),
@@ -125,7 +135,8 @@ class MedicineReminderApp extends StatelessWidget {
 
 class MedicineListScreen extends StatefulWidget {
   const MedicineListScreen({super.key});
-  @override State<MedicineListScreen> createState() => _MedicineListScreenState();
+  @override
+  State<MedicineListScreen> createState() => _MedicineListScreenState();
 }
 
 class _MedicineListScreenState extends State<MedicineListScreen> {
@@ -163,7 +174,6 @@ class _MedicineListScreenState extends State<MedicineListScreen> {
   void _update(Medicine updated) async {
     final index = medicines.indexWhere((m) => m.id == updated.id);
     if (index != -1) {
-      // Cancel dulu semua notifikasi lama
       await _cancelAll(medicines[index]);
       medicines[index] = updated;
       _save();
@@ -198,7 +208,10 @@ class _MedicineListScreenState extends State<MedicineListScreen> {
       final dayBase = todayFirst.add(Duration(days: dayOffset));
 
       for (int i = 0; i < m.timesPerDay && doseIndex < m.totalDoses; i++) {
-        if (takenSet.contains(doseIndex)) { doseIndex++; continue; }
+        if (takenSet.contains(doseIndex)) {
+          doseIndex++;
+          continue;
+        }
 
         final scheduledTime = dayBase.add(Duration(minutes: i * intervalMinutes));
         final tzTime = tz.TZDateTime.from(scheduledTime, tz.local);
@@ -211,7 +224,8 @@ class _MedicineListScreenState extends State<MedicineListScreen> {
           tzTime,
           NotificationDetails(
             android: AndroidNotificationDetails(
-              'med', 'Pengingat Obat',
+              'med',
+              'Pengingat Obat',
               importance: Importance.max,
               priority: Priority.high,
               playSound: !m.notificationOnly || m.alarmSound,
@@ -269,12 +283,7 @@ class _MedicineListScreenState extends State<MedicineListScreen> {
                 return Dismissible(
                   key: Key(m.id),
                   direction: DismissDirection.endToStart,
-                  background: Container(
-                    color: Colors.red,
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 20),
-                    child: const Icon(Icons.delete, color: Colors.white, size: 32),
-                  ),
+                  background: Container(color: Colors.red, alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), child: const Icon(Icons.delete, color: Colors.white, size: 32)),
                   confirmDismiss: (_) async {
                     final confirm = await showCupertinoDialog<bool>(
                       context: context,
@@ -283,11 +292,7 @@ class _MedicineListScreenState extends State<MedicineListScreen> {
                         content: Text('Yakin ingin hapus "${m.name}"?'),
                         actions: [
                           CupertinoDialogAction(child: const Text('Batal'), onPressed: () => Navigator.pop(context, false)),
-                          CupertinoDialogAction(
-                            child: const Text('Hapus', style: TextStyle(color: Colors.red)),
-                            isDestructiveAction: true,
-                            onPressed: () => Navigator.pop(context, true),
-                          ),
+                          CupertinoDialogAction(child: const Text('Hapus', style: TextStyle(color: Colors.red)), isDestructiveAction: true, onPressed: () => Navigator.pop(context, true)),
                         ],
                       ),
                     );
@@ -314,15 +319,22 @@ class _MedicineListScreenState extends State<MedicineListScreen> {
                                   icon: const Icon(Icons.edit, color: Colors.blue),
                                   onPressed: () => Navigator.push(
                                     context,
-                                    CupertinoPageRoute(
-                                      builder: (_) => AddMedicineScreen(
-                                        onSave: _update,
-                                        medicineToEdit: m,
-                                      ),
-                                    ),
+                                    CupertinoPageRoute(builder: (_) => AddMedicineScreen(onSave: _update, medicineToEdit: m)),
                                   ),
                                 ),
-                                Switch(value: m.isActive, activeColor: Colors.blue, onChanged: (_) => setState(() => m.isActive = !m.isActive).then((_) => _save()).then((_) => m.isActive ? _scheduleAll(m) : _cancelAll(m))),
+                                Switch(
+                                  value: m.isActive,
+                                  activeColor: Colors.blue,
+                                  onChanged: (val) async {
+                                    setState(() => m.isActive = val);
+                                    await _save();
+                                    if (val) {
+                                      await _scheduleAll(m);
+                                    } else {
+                                      await _cancelAll(m);
+                                    }
+                                  },
+                                ),
                               ],
                             ),
                           ],
@@ -360,13 +372,13 @@ class _MedicineListScreenState extends State<MedicineListScreen> {
   }
 }
 
-// HALAMAN TAMBAH / EDIT OBAT
 class AddMedicineScreen extends StatefulWidget {
   final Function(Medicine) onSave;
   final Medicine? medicineToEdit;
   const AddMedicineScreen({super.key, required this.onSave, this.medicineToEdit});
 
-  @override State<AddMedicineScreen> createState() => _AddMedicineScreenState();
+  @override
+  State<AddMedicineScreen> createState() => _AddMedicineScreenState();
 }
 
 class _AddMedicineScreenState extends State<AddMedicineScreen> {
@@ -421,21 +433,23 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
         title: Text(widget.medicineToEdit != null ? 'Edit Obat' : 'Tambah Obat'),
         actions: [
           TextButton(
-            onPressed: _nameController.text.trim().isEmpty ? null : () {
-              final med = Medicine(
-                id: widget.medicineToEdit?.id ?? Random().nextInt(999999).toString().padLeft(6, '0'),
-                name: _nameController.text.trim(),
-                timesPerDay: _timesPerDay,
-                totalDoses: _totalDoses,
-                firstDoseTime: _firstDoseTime,
-                notificationOnly: _notifOnly,
-                alarmSound: _alarm,
-                isActive: widget.medicineToEdit?.isActive ?? true,
-              );
-              widget.onSave(med);
-              Navigator.pop(context);
-            },
-            child: const Text('Simpan', style: TextStyle(color: Colors.blue)),
+            onPressed: _nameController.text.trim().isEmpty
+                ? null
+                : () {
+                    final med = Medicine(
+                      id: widget.medicineToEdit?.id ?? Random().nextInt(999999).toString().padLeft(6, '0'),
+                      name: _nameController.text.trim(),
+                      timesPerDay: _timesPerDay,
+                      totalDoses: _totalDoses,
+                      firstDoseTime: _firstDoseTime,
+                      notificationOnly: _notifOnly,
+                      alarmSound: _alarm,
+                      isActive: widget.medicineToEdit?.isActive ?? true,
+                    );
+                    widget.onSave(med);
+                    Navigator.pop(context);
+                  },
+            child: const Text('Sim3pan', style: TextStyle(color: Colors.blue)),
           )
         ],
       ),
@@ -445,7 +459,11 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-          child: TextField(controller: _nameController, style: const TextStyle(color: Colors.black, fontSize: 18), decoration: const InputDecoration(border: InputBorder.none, hintText: 'Paracetamol')),
+          child: TextField(
+            controller: _nameController,
+            style: const TextStyle(color: Colors.black, fontSize: 18),
+            decoration: const InputDecoration(border: InputBorder.none, hintText: 'Paracetamol'),
+          ),
         ),
         const SizedBox(height: 24),
         const Text('Total dosis', style: TextStyle(fontSize: 17)),
@@ -465,7 +483,11 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
         const SizedBox(height: 12),
         GestureDetector(
           onTap: () async {
-            final t = await showTimePicker(context: context, initialTime: _firstDoseTime, builder: (_, child) => Theme(data: ThemeData.dark(), child: child!));
+            final t = await showTimePicker(
+              context: context,
+              initialTime: _firstDoseTime,
+              builder: (_, child) => Theme(data: ThemeData.dark(), child: child!),
+            );
             if (t != null) setState(() => _firstDoseTime = t);
           },
           child: Container(
@@ -489,7 +511,12 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
         ),
         Center(child: Text('Setiap ${selected['interval']}', style: const TextStyle(fontSize: 18, color: Colors.grey))),
         const SizedBox(height: 20),
-        Center(child: Text('Durasi ≈ \( days hari \){hours > 0 ? '$hours jam' : ''}', style: const TextStyle(fontSize: 16, color: Colors.white70))),
+        Center(
+          child: Text(
+            'Durasi ≈ \( days hari \){hours > 0 ? ' $hours jam' : ''}',
+            style: const TextStyle(fontSize: 16, color: Colors.white70),
+          ),
+        ),
         const SizedBox(height: 40),
         const Text('Jenis pengingat', style: TextStyle(fontSize: 17)),
         SwitchListTile(title: const Text('Hanya notifikasi (tanpa suara)'), value: _notifOnly, onChanged: (v) => setState(() => _notifOnly = v)),

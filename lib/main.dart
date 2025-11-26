@@ -15,12 +15,10 @@ final FlutterLocalNotificationsPlugin notifications = FlutterLocalNotificationsP
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Setup timezone
   tz.initializeTimeZones();
   final String timeZoneName = await FlutterTimezone.getLocalTimezone();
   tz.setLocalLocation(tz.getLocation(timeZoneName));
 
-  // Setup notifikasi
   const AndroidInitializationSettings android = AndroidInitializationSettings('@mipmap/ic_launcher');
   await notifications.initialize(
     const InitializationSettings(android: android),
@@ -34,9 +32,7 @@ void main() async {
     },
   );
 
-  // Format tanggal Indonesia
   await initializeDateFormatting('id_ID', null);
-
   runApp(const MedicineReminderApp());
 }
 
@@ -493,7 +489,7 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
             child: TextField(
               keyboardType: TextInputType.number,
               style: const TextStyle(color: Colors.black, fontSize: 18),
-              decoration: InputDecoration(border: InputBorder.none, hintText: '$_totalDoses dosis'),
+              decoration: InputDecoration(border: InputBorder.none, hintText: '30 dosis'),
               onChanged: (v) => setState(() => _totalDoses = int.tryParse(v) ?? 30),
             ),
           ),

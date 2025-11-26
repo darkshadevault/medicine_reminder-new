@@ -14,10 +14,13 @@ final FlutterLocalNotificationsPlugin notifications = FlutterLocalNotificationsP
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Setup timezone
   tz.initializeTimeZones();
   final String timeZoneName = await FlutterTimezone.getLocalTimezone();
   tz.setLocalLocation(tz.getLocation(timeZoneName));
 
+  // Setup notifikasi
   const AndroidInitializationSettings android = AndroidInitializationSettings('@mipmap/ic_launcher');
   await notifications.initialize(
     const InitializationSettings(android: android),
@@ -31,7 +34,9 @@ void main() async {
     },
   );
 
+  // Format tanggal Indonesia
   await initializeDateFormatting('id_ID', null);
+
   runApp(const MedicineReminderApp());
 }
 
@@ -222,13 +227,13 @@ class _MedicineListScreenState extends State<MedicineListScreen> {
           'Waktunya Minum Obat!',
           '\( {m.name} • Dosis \){doseIndex + 1}',
           tzTime,
-          NotificationDetails(
+          const NotificationDetails(
             android: AndroidNotificationDetails(
               'med',
               'Pengingat Obat',
               importance: Importance.max,
               priority: Priority.high,
-              playSound: !m.notificationOnly || m.alarmSound,
+              playSound: true,
             ),
           ),
           androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -283,7 +288,12 @@ class _MedicineListScreenState extends State<MedicineListScreen> {
                 return Dismissible(
                   key: Key(m.id),
                   direction: DismissDirection.endToStart,
-                  background: Container(color: Colors.red, alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), child: const Icon(Icons.delete, color: Colors.white, size: 32)),
+                  background: Container(
+                    color: Colors.red,
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    child: const Icon(Icons.delete, color: Colors.white, size: 32),
+                  ),
                   confirmDismiss: (_) async {
                     final confirm = await showCupertinoDialog<bool>(
                       context: context,
@@ -292,7 +302,11 @@ class _MedicineListScreenState extends State<MedicineListScreen> {
                         content: Text('Yakin ingin hapus "${m.name}"?'),
                         actions: [
                           CupertinoDialogAction(child: const Text('Batal'), onPressed: () => Navigator.pop(context, false)),
-                          CupertinoDialogAction(child: const Text('Hapus', style: TextStyle(color: Colors.red)), isDestructiveAction: true, onPressed: () => Navigator.pop(context, true)),
+                          CupertinoDialogAction(
+                            child: const Text('Hapus', style: TextStyle(color: Colors.red)),
+                            isDestructiveAction: true,
+                            onPressed: () => Navigator.pop(context, true),
+                          ),
                         ],
                       ),
                     );
@@ -429,7 +443,10 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
-        leading: TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal', style: TextStyle(color: Colors.grey))),
+        leading: TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+        ),
         title: Text(widget.medicineToEdit != null ? 'Edit Obat' : 'Tambah Obat'),
         actions: [
           TextButton(
@@ -449,79 +466,89 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
                     widget.onSave(med);
                     Navigator.pop(context);
                   },
-            child: const Text('Sim3pan', style: TextStyle(color: Colors.blue)),
-          )
+            child: const Text('Simpan', style: TextStyle(color: Colors.blue)),
+          ),
         ],
       ),
-      body: ListView(padding: const EdgeInsets.all(20), children: [
-        const Text('Nama obat', style: TextStyle(fontSize: 17)),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-          child: TextField(
-            controller: _nameController,
-            style: const TextStyle(color: Colors.black, fontSize: 18),
-            decoration: const InputDecoration(border: InputBorder.none, hintText: 'Paracetamol'),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          const Text('Nama obat', style: TextStyle(fontSize: 17)),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+            child: TextField(
+              controller: _nameController,
+              style: const TextStyle(color: Colors.black, fontSize: 18),
+              decoration: const InputDecoration(border: InputBorder.none, hintText: 'Paracetamol'),
+            ),
           ),
-        ),
-        const SizedBox(height: 24),
-        const Text('Total dosis', style: TextStyle(fontSize: 17)),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-          child: TextField(
-            keyboardType: TextInputType.number,
-            style: const TextStyle(color: Colors.black, fontSize: 18),
-            decoration: InputDecoration(border: InputBorder.none, hintText: '$_totalDoses dosis'),
-            onChanged: (v) => setState(() => _totalDoses = int.tryParse(v) ?? 30),
+          const SizedBox(height: 24),
+          const Text('Total dosis', style: TextStyle(fontSize: 17)),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+            child: TextField(
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: Colors.black, fontSize: 18),
+              decoration: InputDecoration(border: InputBorder.none, hintText: '$_totalDoses dosis'),
+              onChanged: (v) => setState(() => _totalDoses = int.tryParse(v) ?? 30),
+            ),
           ),
-        ),
-        const SizedBox(height: 32),
-        const Text('Jam pertama hari ini', style: TextStyle(fontSize: 17)),
-        const SizedBox(height: 12),
-        GestureDetector(
-          onTap: () async {
-            final t = await showTimePicker(
-              context: context,
-              initialTime: _firstDoseTime,
-              builder: (_, child) => Theme(data: ThemeData.dark(), child: child!),
-            );
-            if (t != null) setState(() => _firstDoseTime = t);
-          },
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: const Color(0xFF1D1D1D), borderRadius: BorderRadius.circular(16)),
-            child: Center(child: Text(_firstDoseTime.format(context), style: const TextStyle(fontSize: 48, fontWeight: FontWeight.w300))),
+          const SizedBox(height: 32),
+          const Text('Jam pertama hari ini', style: TextStyle(fontSize: 17)),
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: () async {
+              final t = await showTimePicker(
+                context: context,
+                initialTime: _firstDoseTime,
+                builder: (_, child) => Theme(data: ThemeData.dark(), child: child!),
+              );
+              if (t != null) setState(() => _firstDoseTime = t);
+            },
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(color: const Color(0xFF1D1D1D), borderRadius: BorderRadius.circular(16)),
+              child: Center(
+                child: Text(
+                  _firstDoseTime.format(context),
+                  style: const TextStyle(fontSize: 48, fontWeight: FontWeight.w300),
+                ),
+              ),
+            ),
           ),
-        ),
-        const SizedBox(height: 40),
-        const Text('Berapa kali sehari?', style: TextStyle(fontSize: 17)),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 160,
-          child: CupertinoPicker(
-            itemExtent: 44,
-            magnification: 1.2,
-            useMagnifier: true,
-            onSelectedItemChanged: (i) => setState(() => _timesPerDay = frequencies[i]['times'] as int),
-            children: frequencies.map((f) => Center(child: Text(f['text'] as String, style: const TextStyle(fontSize: 22)))).toList(),
+          const SizedBox(height: 40),
+          const Text('Berapa kali sehari?', style: TextStyle(fontSize: 17)),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 160,
+            child: CupertinoPicker(
+              itemExtent: 44,
+              magnification: 1.2,
+              useMagnifier: true,
+              onSelectedItemChanged: (i) => setState(() => _timesPerDay = frequencies[i]['times'] as int),
+              children: frequencies
+                  .map((f) => Center(child: Text(f['text'] as String, style: const TextStyle(fontSize: 22))))
+                  .toList(),
+            ),
           ),
-        ),
-        Center(child: Text('Setiap ${selected['interval']}', style: const TextStyle(fontSize: 18, color: Colors.grey))),
-        const SizedBox(height: 20),
-        Center(
-          child: Text(
-            'Durasi ≈ \( days hari \){hours > 0 ? ' $hours jam' : ''}',
-            style: const TextStyle(fontSize: 16, color: Colors.white70),
+          Center(child: Text('Setiap ${selected['interval']}', style: const TextStyle(fontSize: 18, color: Colors.grey))),
+          const SizedBox(height: 20),
+          Center(
+            child: Text(
+              'Durasi ≈ \( days hari \){hours > 0 ? ' $hours jam' : ''}',
+              style: const TextStyle(fontSize: 16, color: Colors.white70),
+            ),
           ),
-        ),
-        const SizedBox(height: 40),
-        const Text('Jenis pengingat', style: TextStyle(fontSize: 17)),
-        SwitchListTile(title: const Text('Hanya notifikasi (tanpa suara)'), value: _notifOnly, onChanged: (v) => setState(() => _notifOnly = v)),
-        SwitchListTile(title: const Text('Alarm keras'), value: _alarm, onChanged: (v) => setState(() => _alarm = v)),
-      ]),
+          const SizedBox(height: 40),
+          const Text('Jenis pengingat', style: TextStyle(fontSize: 17)),
+          SwitchListTile(title: const Text('Hanya notifikasi (tanpa suara)'), value: _notifOnly, onChanged: (v) => setState(() => _notifOnly = v)),
+          SwitchListTile(title: const Text('Alarm keras'), value: _alarm, onChanged: (v) => setState(() => _alarm = v)),
+        ],
+      ),
     );
   }
 }
